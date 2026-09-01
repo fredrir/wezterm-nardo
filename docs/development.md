@@ -1,115 +1,93 @@
 # Development
 
-## Backend
+## Layout
+
+| path                      | what                                                     |
+| ------------------------- | -------------------------------------------------------- |
+| `backend/`                | Cargo workspace → `target/release/wez-nardo`             |
+| `backend/crates/core`     | `nardo-core` launcher base                               |
+| `backend/crates/sessions` | `nardo-sessions`                                         |
+| `backend/crates/palette`  | `nardo-palette`                                          |
+| `backend/crates/cli`      | `wez-nardo` binary                                       |
+| `plugin/`                 | Lua plugin (`init.lua`, `nardo/*.lua`, `tests/`)         |
+| `tests/`                  | pytest behaviour tests + fake `wezterm`                  |
+| `scripts/`                | dev rig: sandbox WezTerm, deploy, doctor                 |
+
+## Commands
 
 ```sh
-cd backend
-cargo fmt --check
-cargo test
-cargo clippy --all-targets -- -D warnings
-cargo build --release      # target/release/wez-nardo
+just                      # recipes
+just build                # release binary
+just build debug
+just test                 # rust + lua + pytest
+just test-py -k kill      # pytest subset (builds debug first)
+just lint                 # fmt, clippy -D warnings, luacheck, stylua, shellcheck
+just run sessions --headless --keys 'j enter' --dump   # drive the binary by hand
+just dev                  # sandbox WezTerm, rebuild + hot-swap on change
+just dev --live           # hot-swap in your running WezTerm
+just deploy               # build release, hot-swap running backends
+just doctor
 ```
 
-## Plugin
+## Behaviour tests
 
-```sh
-cd plugin
-lua tests/run.lua
-luacheck init.lua nardo tests
-stylua --check init.lua nardo tests
-```
+| piece                       | value                                                        |
+| --------------------------- | ------------------------------------------------------------ |
+| runner                      | `uv run pytest` (`pyproject.toml`, dev group)                |
+| binary                      | `NARDO_BIN` `(fallback: backend/target/debug/wez-nardo)`     |
+| fake wezterm                | `tests/fake_wezterm.py`, selected through `NARDO_WEZTERM`    |
+| fake state                  | `FAKE_WEZTERM_STATE` json: panes list + get-text per pane    |
+| fake call log               | `FAKE_WEZTERM_LOG` one json line per `wezterm cli` call      |
+| driver                      | `wez-nardo <app> --headless --keys ... --dump`               |
 
-## Shell
+Tests assert on the outcome json and the call log — never on layout or rendering.
 
-```sh
-just lint-sh      # what CI runs
-```
+## Requirements
 
-CI pins **shellcheck v0.11.0**. SC2015 (`A && B || C`) fires on materially more
-code in 0.10.0 and earlier, so an unpinned runner can fail a tree that is clean
-on your machine. If you bump the pin in `.github/workflows/ci.yml`, bump it here.
+| tool        | version           |
+| ----------- | ----------------- |
+| rust        | ≥ 1.88 (edition 2024) |
+| python      | ≥ 3.12, `uv`      |
+| lua         | 5.4 / 5.5, `luacheck`, `stylua` |
+| shellcheck  | v0.11.0 (CI pin)  |
+| just, watchexec | dev loop only |
 
-## End-to-end
-
-```sh
-sh plugin/tests/e2e.sh
-```
-
-## Dev loop
-
-Needs [`just`](https://github.com/casey/just) and [`watchexec`](https://github.com/watchexec/watchexec).
-
-```sh
-just              # list recipes
-just dev          # sandbox WezTerm, rebuild + hot-swap on change
-just dev --live   # hot-swap in your running WezTerm instead
-just doctor       # what is installed, what is running, whether it agrees
-```
-
-## Applying a build
-
-```sh
-just deploy                  # build release, hot-swap running backends
-just deploy --from-prd       # install into WezTerm's plugin dir as a real plugin
-just deploy --from-release   # download the published assets and install those
-```
-
-## Local development config
+## Local config
 
 ```lua
-package.path = "/path/to/wezterm-nardo/plugin/?.lua;" .. package.path
-local nardo = dofile "/path/to/wezterm-nardo/plugin/init.lua"
+package.path = "/path/to/nardo/plugin/?.lua;" .. package.path
+local nardo = dofile "/path/to/nardo/plugin/init.lua"
 nardo.apply_to_config(config, {
-  backend = { path = "/path/to/wezterm-nardo/backend/target/release/wez-nardo" },
+  backend = { path = "/path/to/nardo/backend/target/release/wez-nardo" },
   debug = true,
 })
 ```
 
-## Staying in sync with the template
-
-`.template-files` lists the files starter-template owns. They hold no
-plugin-specific strings, so they are identical in every plugin.
-
-```sh
-just template-check   # report drift
-just template-diff    # show it
-just template-sync    # pull the template's versions
-just template-push    # send local fixes upstream
-```
-
-`WEZPLUG_TEMPLATE` picks the template to compare against: a path, or a git URL.
-It defaults to a `../starter-template` sibling, else clones upstream.
-
 ## Identity
 
-`plugin.conf` is the single source of truth for the shell side; `plugin/nardo/id.lua`
-mirrors it for the Lua side. CI asserts they agree.
+`plugin.conf` is the source of truth for the shell side; `plugin/nardo/id.lua` mirrors it. CI asserts they agree.
 
-| field    | example                            | derived                              |
-| -------- | ---------------------------------- | ------------------------------------ |
-| `ns`     | `nardo`                          | Lua module dir, user-var name        |
-| `name`   | `wez-nardo`                      | backend binary, release asset names  |
-| `repo`   | `fredrir/wezterm-nardo` | release URL, plugin-dir mangling     |
-| *prefix* | `NARDO`                          | uppercased `ns`; bootstrap env vars  |
+| field    | value                       | derived                          |
+| -------- | --------------------------- | -------------------------------- |
+| `ns`     | `nardo`                     | Lua module dir, user-var name    |
+| `name`   | `wez-nardo`                 | binary, release asset names      |
+| `repo`   | `fredrir/wezterm-nardo`     | release URL, plugin-dir mangling |
+| *prefix* | `NARDO`                     | bootstrap env vars               |
 
 ## Bootstrap environment
 
-The bootstrap is invoked as `sh bootstrap.sh <name> <PREFIX>` and reads these,
-where `PREFIX` is the uppercased `ns`:
+`sh bootstrap.sh <name> <PREFIX>` reads:
 
-| Variable          | Description                          |
-| ----------------- | ------------------------------------ |
-| `<PREFIX>_BIN`    | Explicit binary; skips every fallback |
-| `<PREFIX>_TARGET` | Rust triple                          |
-| `<PREFIX>_VERSION`| Release tag without `v`              |
-| `<PREFIX>_REPO`   | `owner/name` for release downloads   |
-| `<PREFIX>_SRC`    | Backend crate for the cargo fallback |
-| `<PREFIX>_BUILD`  | `0` disables the cargo fallback      |
+| env               | value                                  |
+| ----------------- | -------------------------------------- |
+| `NARDO_BIN`       | explicit binary; skips every fallback  |
+| `NARDO_TARGET`    | rust triple                            |
+| `NARDO_VERSION`   | release tag without `v`                |
+| `NARDO_REPO`      | `owner/name` for release downloads     |
+| `NARDO_SRC`       | workspace for the cargo fallback       |
+| `NARDO_BUILD`     | `0` disables the cargo fallback        |
 
-The backend binary itself reads only neutral names, so it never needs to know its
-own prefix:
+## Template
 
-| Variable          | Description                                             |
-| ----------------- | ------------------------------------------------------- |
-| `WEZPLUG_USERVAR` | user var name for events (default `wezplug`)            |
-| `WEZPLUG_LOG`     | append debug lines here (0600, symlinks refused)        |
+`.template-files` lists files owned by `wez-starter-template`; `just template-check` reports drift.
+`justfile`, CI and `backend/` are plugin-specific here and no longer tracked by the template.

@@ -1,55 +1,61 @@
-# wezterm-nardo
+# wez-nardo
 
-Template for a WezTerm plugin: a Lua plugin, an optional Rust backend process, and
-the dev rig (sandbox WezTerm, hot-swap, deploy modes, CI, release) that goes with them.
+Spotlight for WezTerm. A fast, batteries-included launcher family: Lua plugin front, Rust TUI back
+(ratatui + tachyonfx), native WezTerm integration everywhere it counts — including TLS/unix mux domains.
 
-## New plugin
+| launcher            | default key | what                                                        |
+| ------------------- | ----------- | ----------------------------------------------------------- |
+| Session explorer    | `⌘K`        | fuzzy-search domains › windows › tabs › panes, live preview, switch/kill/move/rename/create, attach TLS domains |
+| Command palette     | `⌘⇧P`       | your commands + built-in WezTerm actions                    |
+| Quick terminal      | `⌥⌘T`       | dropdown terminal window                                    |
 
-```sh
-just scaffold nardo                 # -> ../nardo, Lua + Rust backend
-just scaffold nardo --no-backend    # pure Lua
-just scaffold nardo --repo me/wezterm-nardo --dest ~/src/nardo
+All three sit on one shared launcher base (`nardo-core` + `nardo.launcher`) that other plugins can
+build on: context snapshot in, centered overlay UI out, actions back via user vars.
+
+## Install
+
+```lua
+local wezterm = require "wezterm"
+local nardo = wezterm.plugin.require "https://github.com/fredrir/wezterm-nardo"
+
+local config = wezterm.config_builder()
+nardo.apply_to_config(config, {})
+return config
 ```
 
-Scaffolding copies the tree, rewrites the seed code to the new namespace, writes
-`plugin.conf`, and commits. Shared files are copied verbatim so the new plugin
-starts in sync with the template.
+The backend binary is resolved automatically: explicit `backend.path` → cached → GitHub release
+(checksum-verified) → local `cargo build`.
 
-## Layout
+## Feel
 
-```
-plugin.conf              identity: ns, name, repo — every script derives the rest
-.template-files          which files the template owns
-justfile                 task entry points
-scripts/                 dev, deploy, doctor, scaffold, template sync
-plugin/
-  init.lua               root resolution, guarded events, reload watch list
-  nardo/               id, config, util, platform, backend, version
-  tests/                 lua runner, wezterm stub, fake mux, e2e
-backend/                 Rust terminal-bridge backend (optional)
-```
+- Centered overlay above a dimmed snapshot of your pane (`presentation.mode = "overlay" | "tab" | "window" | "split"`)
+- Colours derived from your WezTerm palette; subtle open/close/hover effects (`presentation.animations = false` to disable)
+- Full mouse support: hover to preview, click to select, wheel to move, chips to change scope
+- Are-you-sure prompts before anything destructive
 
-## Shared vs seed
+## Keys, options, internals
 
-`.template-files` lists the files starter-template owns. They contain **no
-plugin-specific strings** — `plugin.conf` supplies identity at runtime — so they
-are byte-identical in every plugin and sync is a plain copy.
+| doc                                          | what                                  |
+| -------------------------------------------- | ------------------------------------- |
+| [docs/keys.md](docs/keys.md)                 | every binding, mouse, query syntax    |
+| [docs/configuration.md](docs/configuration.md) | all options                         |
+| [docs/architecture.md](docs/architecture.md) | crates, modules, data flow            |
+| [docs/protocol.md](docs/protocol.md)         | context json, actions, headless driver |
+| [docs/development.md](docs/development.md)   | dev rig, tests, release               |
 
-```sh
-just template-check   # which shared files drifted
-just template-diff    # how they drifted
-just template-sync    # pull the template's versions down
-just template-push    # send local fixes back up to the template
-```
+## Remote / TLS mux
 
-Everything else is seed code: copied once at scaffold, yours afterwards. CI runs
-`template-check`, so drift shows up on the next push rather than the next time you
-go looking.
-
-Fix a script once in `starter-template`, then `just template-sync` in each plugin.
+The launcher always runs on the GUI host in the `local` domain, so it sees every attached domain —
+local, unix and TLS — and lists detached domains for one-keystroke attach. Pane moves across
+different domains are a WezTerm limitation, not a nardo one.
 
 ## Development
 
-See [docs/development.md](docs/development.md). Configuration options are in
-[docs/configuration.md](docs/configuration.md), and the backend wire format is in
-[docs/protocol.md](docs/protocol.md).
+```sh
+just build     # release binary
+just test      # cargo test + lua tests + pytest behaviour suite
+just dev       # sandbox WezTerm with hot-swap
+```
+
+Behaviour is tested with **pytest** driving the real binary headless against a fake `wezterm`
+(`tests/`); rendering is deliberately untested while the design settles.
