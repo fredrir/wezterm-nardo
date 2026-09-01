@@ -1,0 +1,16 @@
+[package]
+name = "nardo-palette"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Command palette app for wez-nardo"
+
+[dependencies]
+nardo-core.workspace = true
+ratatui.workspace = true
+crossterm.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true

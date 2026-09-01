@@ -1,0 +1,21 @@
+[package]
+name = "nardo-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Launcher base for WezTerm TUIs: runtime, ui kit, wezterm client"
+
+[dependencies]
+ratatui.workspace = true
+tachyonfx.workspace = true
+crossterm.workspace = true
+nucleo-matcher.workspace = true
+ansi-to-tui.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+unicode-width.workspace = true
+base64.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true

@@ -1,0 +1,20 @@
+[package]
+name = "wez-nardo"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "WezTerm launcher: session explorer, command palette, quick terminal"
+
+[[bin]]
+name = "wez-nardo"
+path = "src/main.rs"
+
+[dependencies]
+nardo-core.workspace = true
+nardo-sessions.workspace = true
+nardo-palette.workspace = true
+clap.workspace = true
+anyhow.workspace = true
+serde_json.workspace = true

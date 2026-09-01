@@ -1,20 +1,38 @@
-[package]
-name    = "wez-nardo-backend"
+[workspace]
+resolver = "3"
+members = ["crates/cli", "crates/core", "crates/sessions", "crates/palette"]
+
+[workspace.package]
 version = "0.1.0"
 edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+repository = "https://github.com/fredrir/wezterm-nardo"
 
-[dependencies]
-base64 = "0.23.1"
-crossterm = { version = "0.29.0", default-features = false, features = ["windows"] }
+[workspace.dependencies]
+nardo-core = { path = "crates/core" }
+nardo-sessions = { path = "crates/sessions" }
+nardo-palette = { path = "crates/palette" }
+
+ratatui = { version = "0.30.2", default-features = false, features = ["crossterm", "macros", "underline-color", "layout-cache"] }
+tachyonfx = "0.25.1"
+crossterm = { version = "0.29.0", default-features = false, features = ["windows", "events", "bracketed-paste"] }
+nucleo-matcher = "0.3.1"
+ansi-to-tui = "8.0.1"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
-
-[[bin]]
-name = "wez-nardo"
-path = "src/main.rs"
+clap = { version = "4.6.6", features = ["derive", "env"] }
+unicode-width = "0.2.2"
+base64 = "0.23.1"
+anyhow = "1.0.104"
+thiserror = "2.0.20"
 
 [profile.release]
-opt-level     = "z"
-lto           = "fat"
+opt-level = 3
+lto = "fat"
 codegen-units = 1
-strip         = true
+strip = true
+panic = "unwind"
+
+[profile.dev]
+opt-level = 1
