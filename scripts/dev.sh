@@ -76,7 +76,7 @@ else
 fi
 
 if has_backend; then
-  watchexec -q --postpone -w "$root/backend/src" -e rs --debounce 200ms -n -- sh "$0" --once --"$profile" &
+  watchexec -q --postpone -w "$root/backend/crates" -e rs --debounce 200ms -n -- sh "$0" --once --"$profile" &
   pids="$pids $!"
 fi
 watchexec -q --postpone -w "$root/plugin" -e lua --debounce 200ms -n -- sh "$0" --check &

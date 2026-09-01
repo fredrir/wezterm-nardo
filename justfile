@@ -17,12 +17,20 @@ doctor:
 # Everything CI runs
 check: test lint
 
-test:
-    @if [ -f backend/Cargo.toml ]; then cd backend && cargo test --locked; fi
+test: test-rust test-lua test-py
+
+test-rust:
+    @if [ -f backend/Cargo.toml ]; then cd backend && cargo test --workspace --locked; fi
+
+test-lua:
     cd plugin && lua tests/run.lua
 
+# Behaviour tests: pytest drives the binary headless against a fake `wezterm`
+test-py *args: (build "debug")
+    uv run pytest {{args}}
+
 lint:
-    @if [ -f backend/Cargo.toml ]; then cd backend && cargo fmt --check && cargo clippy --all-targets --locked -- -D warnings; fi
+    @if [ -f backend/Cargo.toml ]; then cd backend && cargo fmt --all --check && cargo clippy --workspace --all-targets --locked -- -D warnings; fi
     cd plugin && luacheck init.lua {{ns}} tests && stylua --check init.lua {{ns}} tests
     @if command -v shellcheck >/dev/null 2>&1; then just lint-sh; else echo "warning: shellcheck not installed — CI still runs it (pinned v0.11.0)"; fi
 
@@ -34,7 +42,11 @@ e2e mode="local":
     sh plugin/tests/e2e.sh {{mode}}
 
 build profile="release":
-    @if [ -f backend/Cargo.toml ]; then cd backend && cargo build --locked {{ if profile == "release" { "--release" } else { "" } }}; else echo "no backend crate"; fi
+    @if [ -f backend/Cargo.toml ]; then cd backend && cargo build --locked -p wez-nardo {{ if profile == "release" { "--release" } else { "" } }}; else echo "no backend crate"; fi
+
+# Run the session explorer in this pane against the live mux (needs a context file, see docs/protocol.md)
+run app="sessions" *args: (build "debug")
+    NARDO_WEZTERM=$(command -v wezterm) backend/target/debug/wez-nardo {{app}} {{args}}
 
 # Stamp this template out into a new plugin
 scaffold ns *args:
