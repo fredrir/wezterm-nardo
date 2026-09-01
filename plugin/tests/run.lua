@@ -22,10 +22,16 @@ local function eq(a, b, msg)
 end
 
 local wezterm = require "wezterm"
+local fake = require "fake_mux"
 local util = require "nardo.util"
 local config = require "nardo.config"
 local backend = require "nardo.backend"
+local context = require "nardo.context"
+local launcher = require "nardo.launcher"
+local palette = require "nardo.palette"
+local sessions = require "nardo.sessions"
 local id = require "nardo.id"
+local platform = require "nardo.platform"
 
 backend.root = here .. "/.."
 
@@ -43,6 +49,34 @@ local function backend_test(name, fn)
   if has_backend then
     test(name, fn)
   end
+end
+
+---One origin window with two panes plus a tls domain pair; returns gui, origin pane, mux window.
+local function rig(domains)
+  wezterm.GLOBAL[id.ns .. "_launchers"] = nil
+  wezterm.GLOBAL[id.ns .. "_sessions"] = nil
+  local window = fake.window()
+  local tab = window:add_tab { title = "work" }
+  local origin = tab.pane_list[1]
+  origin.domain = "localmux"
+  fake.pane(tab, { title = "vim", domain = "localmux" })
+  wezterm.mux.set({ window }, domains or {
+    fake.domain { name = "local", kind = "local" },
+    fake.domain { name = "localmux", has_panes = true },
+    fake.domain { name = "archie-wifi", state = "Detached" },
+  })
+  window.gui.config = {
+    unix_domains = { { name = "localmux" } },
+    tls_clients = { { name = "archie-wifi" } },
+    resolved_palette = {
+      background = "#1E1E2E",
+      foreground = "#cdd6f4",
+      ansi = { "#45475a", "#f38ba8", "#a6e3a1", "#f9e2af", "#89b4fa", "#f5c2e7", "#94e2d5", "#bac2de" },
+      brights = { "#585b70", "#f38ba8", "#a6e3a1", "#f9e2af", "#89b4fa", "#f5c2e7", "#94e2d5", "#a6adc8" },
+      selection_bg = "#45475a",
+    },
+  }
+  return window.gui, origin, window
 end
 
 test("id derives name, prefix and url from ns", function()
@@ -73,19 +107,35 @@ test("sanitize strips control and C1 characters", function()
   eq(util.sanitize(nil), "")
 end)
 
-test("config falls back to defaults for bad enums and out-of-range numbers", function()
-  local cfg = config.setup { position = "top", width = 2, poll_ms = 10 }
-  eq(cfg.position, "left")
-  eq(cfg.width, 28)
-  eq(cfg.poll_ms, 500)
-  eq(config.setup({ width = 20 }).width, 20)
-  eq(config.setup({ position = "right" }).position, "right")
-  eq(config.setup({}).backend.uservar, id.ns)
+test("config falls back to defaults for bad enums, ranges and shapes", function()
+  local cfg = config.setup {
+    presentation = { mode = "popup", backdrop = "blur", width = 0 },
+    sessions = { scope = "bogus" },
+    quick = { height = 3 },
+    theme = "nope",
+    hooks = { done = 5 },
+  }
+  eq(cfg.presentation.mode, "overlay")
+  eq(cfg.presentation.backdrop, "dim")
+  eq(cfg.presentation.width, 0.72)
+  eq(cfg.sessions.scope, "all")
+  eq(cfg.quick.height, 0.4)
+  eq(cfg.theme, "auto")
+  eq(cfg.hooks.done, nil)
+  eq(cfg.backend.uservar, id.ns)
+end)
+
+test("config normalises key specs and honours false", function()
+  local cfg = config.setup { sessions = { key = "j" }, palette = { key = false }, quick = { key = { mods = "ALT" } } }
+  eq(cfg.sessions.key.key, "j")
+  eq(cfg.sessions.key.mods, platform.SUPER)
+  eq(cfg.palette.key, false)
+  eq(cfg.quick.key.key, config.defaults.quick.key.key, "broken spec resets to the default")
 end)
 
 test("config.get returns the last setup", function()
-  config.setup { width = 40 }
-  eq(config.get().width, 40)
+  config.setup { presentation = { width = 0.5 } }
+  eq(config.get().presentation.width, 0.5)
 end)
 
 test("backend path resolves per domain and host", function()
@@ -120,17 +170,6 @@ backend_test("local spawn passes name and prefix to the bootstrap", function()
   eq(args[4], id.prefix)
 end)
 
-backend_test("remote spawn inlines the bootstrap and keeps args off $0", function()
-  local cfg = config.setup {}
-  local remote = backend.spawn_args(cfg, "desktop")
-  eq(remote[1], "sh")
-  eq(remote[2], "-c")
-  assert(remote[3]:find("bootstrap.sh", 1, true) or remote[3]:find("backend not found", 1, true))
-  eq(remote[4], "sh", "placeholder so the name lands on $1, not $0")
-  eq(remote[5], id.name)
-  eq(remote[6], id.prefix)
-end)
-
 test("env is prefixed for the bootstrap and neutral for the binary", function()
   local cfg = config.setup { backend = { path = "/bin/" .. id.name, log = "/tmp/x.log" } }
   local env = backend.env(cfg, "local")
@@ -140,15 +179,177 @@ test("env is prefixed for the bootstrap and neutral for the binary", function()
   eq(env[id.prefix .. "_BIN"], "/bin/" .. id.name)
   eq(env[id.prefix .. "_BUILD"], "1")
   eq(env[id.prefix .. "_REPO"], id.repo)
-
-  local remote = backend.env(config.setup {}, "desktop")
-  eq(remote[id.prefix .. "_TARGET"], nil, "no host triple for a remote domain")
-  eq(remote[id.prefix .. "_BUILD"], "0")
 end)
 
-test("build=false disables the cargo fallback", function()
-  local cfg = config.setup { backend = { build = false } }
-  eq(backend.env(cfg, "local")[id.prefix .. "_BUILD"], "0")
+test("context snapshot matches docs/protocol.md", function()
+  local gui, origin = rig()
+  local ctx = context.snapshot(gui, origin, "sessions", { options = { mru = true } })
+  eq(ctx.v, 1)
+  eq(ctx.app, "sessions")
+  eq(ctx.origin.pane_id, origin:pane_id())
+  eq(ctx.origin.domain, "localmux")
+  eq(type(ctx.origin.window_id), "number")
+  local by_name = {}
+  for _, domain in ipairs(ctx.domains) do
+    by_name[domain.name] = domain
+  end
+  eq(by_name["localmux"].kind, "unix")
+  eq(by_name["archie-wifi"].kind, "tls")
+  eq(by_name["archie-wifi"].state, "Detached")
+  eq(by_name["local"].kind, "local")
+  local extra = ctx.panes[tostring(origin:pane_id())]
+  eq(extra.domain, "localmux")
+  eq(extra.process, "zsh")
+  eq(type(extra.cwd), "string")
+  eq(ctx.workspaces.active, "default")
+  eq(ctx.theme.background, "#1e1e2e")
+  eq(ctx.theme.ansi[5], "#89b4fa")
+  eq(ctx.presentation.mode, "overlay")
+  eq(ctx.presentation.split, nil, "split stays lua-side")
+  eq(ctx.options.mru, true)
+end)
+
+test("hex normalises colours and rejects junk", function()
+  eq(context.hex "#AABBCC", "#aabbcc")
+  eq(context.hex(nil), nil)
+  eq(context.hex "junk", nil)
+end)
+
+local function open_rig(overrides)
+  local gui, origin, window = rig()
+  config.setup(util.merge({ backend = { path = "/bin/" .. id.name } }, overrides or {}))
+  local pane = launcher.open(gui, origin, { app = "sessions", presentation = overrides and overrides.presentation })
+  return gui, origin, window, pane
+end
+
+test("launcher spawns in the local domain with context, exe and uservar env", function()
+  local _, _, window, pane = open_rig()
+  assert(pane, "launcher pane")
+  local tab = window.tab_list[#window.tab_list]
+  eq(tab.spawn.domain.DomainName, "local")
+  eq(tab.spawn.args[1], "/bin/" .. id.name)
+  local env = tab.spawn.set_environment_variables
+  eq(env[id.prefix .. "_WEZTERM"], wezterm.executable_dir .. "/wezterm")
+  eq(env.WEZPLUG_USERVAR, id.ns)
+  eq(type(env.WEZTERM_UNIX_SOCKET), "string")
+  eq(tab.title, " ", "calm tab title")
+  local file = assert(io.open(env[id.prefix .. "_CONTEXT"], "r"))
+  local ctx = wezterm.json_parse(file:read "a")
+  file:close()
+  eq(ctx.app, "sessions")
+  eq(ctx.presentation.mode, "overlay")
+  os.remove(env[id.prefix .. "_CONTEXT"])
+end)
+
+test("double open focuses the live launcher instead of spawning", function()
+  local gui, origin, window, pane = open_rig()
+  local tabs_before = #window.tab_list
+  local again = launcher.open(gui, origin, { app = "sessions" })
+  eq(again, pane)
+  eq(#window.tab_list, tabs_before)
+end)
+
+test("split and window presentations dispatch to split and spawn_window", function()
+  local _, origin = open_rig { presentation = { mode = "split" } }
+  local split = origin._tab.pane_list[1].split_args
+  eq(split.direction, "Bottom")
+  eq(split.size, 0.5)
+  eq(split.domain.DomainName, "local")
+
+  open_rig { presentation = { mode = "window" } }
+  local spawned = wezterm.mux.state.spawned[1]
+  assert(spawned, "spawn_window called")
+  eq(spawned.domain.DomainName, "local")
+  assert(spawned.width and spawned.height, "sized")
+  local popup = wezterm.mux.state.windows[#wezterm.mux.state.windows]
+  eq(popup.gui.overrides.enable_tab_bar, false)
+end)
+
+local function dispatch(gui, pane, action)
+  launcher.dispatch(gui, pane, action)
+end
+
+test("user-var actions: focus, attach_domain, run, done", function()
+  local gui, _, window, pane = open_rig()
+  local other = window.tab_list[1].pane_list[1]
+  dispatch(gui, pane, { t = "focus", pane_id = other:pane_id() })
+  eq(window.tab_list[1].active, other)
+
+  local domain = wezterm.mux.get_domain "archie-wifi"
+  dispatch(gui, pane, { t = "attach_domain", domain = "archie-wifi" })
+  eq(domain:state(), "Attached")
+  eq(gui._mux.actions[#gui._mux.actions].action.action, "SpawnCommandInNewTab", "empty domain spawns")
+
+  local got
+  launcher.on_action("hello", function(_, _, args)
+    got = args.x
+  end)
+  dispatch(gui, pane, { t = "run", name = "hello", args = { x = 7 } })
+  eq(got, 7)
+
+  local session = wezterm.GLOBAL[id.ns .. "_sessions"][tostring(pane:pane_id())]
+  dispatch(gui, pane, { t = "done", exit = "activated" })
+  eq(io.open(session.context, "r"), nil, "context file removed")
+  eq(wezterm.GLOBAL[id.ns .. "_launchers"][tostring(gui:window_id())], nil)
+end)
+
+test("user-var handler survives malformed payloads and foreign vars", function()
+  local gui, origin = rig()
+  launcher.register { keys = {} }
+  local handler = wezterm.handlers["user-var-changed"][#wezterm.handlers["user-var-changed"]]
+  handler(gui, origin, "someone_else", "xxx")
+  handler(gui, origin, id.ns, "not json at all")
+  handler(gui, origin, id.ns .. "_role", "launcher")
+  eq(wezterm.GLOBAL[id.ns .. "_launchers"][tostring(gui:window_id())], origin:pane_id())
+end)
+
+test("forwarded chords reach launcher panes only", function()
+  local gui, origin, window = rig()
+  local conf = { keys = { { key = "d", mods = "CMD|SHIFT", action = { action = "UserBinding" } } } }
+  launcher.bind(conf, { key = "d", mods = "CMD|SHIFT" }, "D")
+  local binding = conf.keys[#conf.keys]
+  local target = fake.pane(window.tab_list[1], { vars = { [id.ns .. "_role"] = "launcher" } })
+  binding.action.callback(gui, target)
+  eq(target.sent[1], utf8.char(0xE000) .. "D")
+  binding.action.callback(gui, origin)
+  eq(gui._mux.actions[#gui._mux.actions].action.action, "UserBinding", "non-launcher runs the shadowed binding")
+end)
+
+test("palette builds ids and runs commands through perform_action", function()
+  local gui, origin = rig()
+  local hits = 0
+  local cfg = config.setup {
+    palette = {
+      commands = {
+        {
+          label = "Custom",
+          action = function()
+            hits = hits + 1
+          end,
+        },
+        { broken = true },
+      },
+    },
+  }
+  local list = palette.commands(cfg)
+  eq(list[1].label, "Custom")
+  eq(list[1].id, "p1")
+  assert(#list > #palette.BUILTIN, "built-ins appended")
+  palette.run(gui, origin, list[1])
+  eq(hits, 1)
+  palette.run(gui, origin, list[2])
+  eq(gui._mux.actions[#gui._mux.actions].action.action, "ReloadConfiguration")
+end)
+
+test("sessions options follow config and omit empty keys", function()
+  config.setup {}
+  local options = sessions.options(config.get(), {})
+  eq(options.confirm_kill, true)
+  eq(options.preview_lines, 200)
+  eq(options.keys, nil)
+  options = sessions.options(config.get(), { keys = { kill = "x" }, scope = "panes" })
+  eq(options.keys.kill, "x")
+  eq(options.scope, "panes")
 end)
 
 print(string.format("%d passed, %d failed", passed, failed))

@@ -147,6 +147,14 @@ function M.log(fmt, ...)
   wezterm.log_info(id.ns .. ": " .. string.format(fmt, ...))
 end
 
+M.debug_enabled = false
+
+function M.debug(fmt, ...)
+  if M.debug_enabled then
+    M.log(fmt, ...)
+  end
+end
+
 function M.warn(fmt, ...)
   wezterm.log_warn(id.ns .. ": " .. string.format(fmt, ...))
 end

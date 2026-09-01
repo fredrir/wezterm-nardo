@@ -13,10 +13,17 @@ config.exit_behavior = "Close"
 config.window_decorations = "RESIZE"
 config.color_scheme = "Catppuccin Mocha"
 
+local bin = os.getenv "WEZPLUG_BIN"
+if bin == "" then
+  bin = nil
+end
+
+-- CTRL|SHIFT chords behave the same on every OS, so the sandbox binds those explicitly.
 plugin.apply_to_config(config, {
-  poll_ms = 200,
   debug = true,
-  backend = { path = os.getenv "WEZPLUG_BIN", build = false },
+  backend = { path = bin, build = false, log = "/tmp/wez-nardo-dev.log" },
+  sessions = { key = { key = "k", mods = "CTRL|SHIFT" } },
+  palette = { key = { key = "p", mods = "CTRL|SHIFT" } },
 })
 
 return config

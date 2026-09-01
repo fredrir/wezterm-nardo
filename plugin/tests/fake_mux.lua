@@ -98,6 +98,13 @@ end
 function Tab:window()
   return self._window
 end
+function Tab:get_size()
+  local cols = 0
+  for _, p in ipairs(self.pane_list) do
+    cols = cols + p.cols
+  end
+  return { cols = math.max(cols, 80), rows = 40, pixel_width = math.max(cols, 80) * 8, pixel_height = 40 * 16 }
+end
 
 local Window = {}
 Window.__index = Window
@@ -134,6 +141,9 @@ end
 function Window:window_id()
   return self.id
 end
+function Window:tabs()
+  return self.tab_list
+end
 function Window:tabs_with_info()
   local out = {}
   for i, tab in ipairs(self.tab_list) do
@@ -160,6 +170,18 @@ function M.gui(window)
   return setmetatable({ _mux = window }, Gui)
 end
 
+function Gui:active_workspace()
+  return "default"
+end
+function Gui:is_focused()
+  return self.focused == true
+end
+function Gui:focus()
+  self.focused = true
+end
+function Gui:set_config_overrides(overrides)
+  self.overrides = overrides
+end
 function Gui:mux_window()
   return self._mux
 end
@@ -167,7 +189,7 @@ function Gui:window_id()
   return self._mux.id
 end
 function Gui:effective_config()
-  return { resolved_palette = {}, skip_close_confirmation_for_processes_named = { "zsh", "wez-nardo" } }
+  return self.config or { resolved_palette = {}, skip_close_confirmation_for_processes_named = { "zsh", "wez-nardo" } }
 end
 function Gui:get_dimensions()
   return { pixel_width = 800, pixel_height = 600 }
@@ -198,6 +220,46 @@ function Gui:perform_action(action, pane)
     table.insert(self._mux.tab_list, action.arg + 1, tab)
     self._mux.active_tab_ref = tab
   end
+end
+
+local Domain = {}
+Domain.__index = Domain
+
+---A minimal MuxDomain; `opts = { name, label, kind, state, spawnable, has_panes }`.
+function M.domain(opts)
+  return setmetatable({
+    _name = opts.name,
+    _label = opts.label or opts.name,
+    _state = opts.state or "Attached",
+    _spawnable = opts.spawnable ~= false,
+    _has_panes = opts.has_panes == true,
+    attached = {},
+    detached = 0,
+  }, Domain)
+end
+
+function Domain:name()
+  return self._name
+end
+function Domain:label()
+  return self._label
+end
+function Domain:state()
+  return self._state
+end
+function Domain:is_spawnable()
+  return self._spawnable
+end
+function Domain:has_any_panes()
+  return self._has_panes
+end
+function Domain:attach(window)
+  self._state = "Attached"
+  self.attached[#self.attached + 1] = window or true
+end
+function Domain:detach()
+  self._state = "Detached"
+  self.detached = self.detached + 1
 end
 
 return M

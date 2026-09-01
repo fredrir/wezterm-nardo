@@ -76,11 +76,14 @@ M.color = {
   end,
 }
 
+-- Like the real thing, `wezterm.action.X` works bare or called with an argument.
 M.action = setmetatable({}, {
   __index = function(_, name)
-    return function(arg)
-      return { action = name, arg = arg }
-    end
+    return setmetatable({ action = name }, {
+      __call = function(_, arg)
+        return { action = name, arg = arg }
+      end,
+    })
   end,
 })
 
@@ -102,6 +105,9 @@ function M.on(name, fn)
 end
 
 M.time = {
+  call_after = function(_, fn)
+    fn()
+  end,
   now = function()
     return {
       format = function()
@@ -111,11 +117,100 @@ M.time = {
   end,
 }
 
+-- Mutable mux state; tests install fake_mux windows/domains here.
+local mux_state = { windows = {}, domains = {}, spawned = {} }
+
+local function each_pane(fn)
+  for _, window in ipairs(mux_state.windows) do
+    for _, tab in ipairs(window.tab_list or {}) do
+      for _, pane in ipairs(tab.pane_list or {}) do
+        local result = fn(window, tab, pane)
+        if result ~= nil then
+          return result
+        end
+      end
+    end
+  end
+  return nil
+end
+
 M.mux = {
+  state = mux_state,
+  set = function(windows, domains)
+    mux_state.windows = windows or {}
+    mux_state.domains = domains or {}
+    mux_state.spawned = {}
+  end,
   all_windows = function()
-    return {}
+    return mux_state.windows
+  end,
+  all_domains = function()
+    return mux_state.domains
+  end,
+  get_domain = function(name)
+    for _, domain in ipairs(mux_state.domains) do
+      if domain:name() == name then
+        return domain
+      end
+    end
+    return nil
+  end,
+  get_pane = function(id)
+    return each_pane(function(_, _, pane)
+      if pane:pane_id() == id then
+        return pane
+      end
+    end)
+  end,
+  get_window = function(id)
+    for _, window in ipairs(mux_state.windows) do
+      if window:window_id() == id then
+        return window
+      end
+    end
+    error("window " .. tostring(id) .. " not found")
+  end,
+  get_workspace_names = function()
+    return { "default" }
+  end,
+  get_active_workspace = function()
+    return "default"
+  end,
+  spawn_window = function(opts)
+    mux_state.spawned[#mux_state.spawned + 1] = opts
+    local fake = require "fake_mux"
+    local window = fake.window()
+    local tab = window:add_tab { process = opts.args and opts.args[1] or "sh" }
+    tab.spawn = opts
+    mux_state.windows[#mux_state.windows + 1] = window
+    return tab, tab.pane_list[1], window
   end,
 }
+
+M.gui = {
+  screens = function()
+    return { active = { name = "main", x = 0, y = 0, width = 2560, height = 1440 } }
+  end,
+}
+
+function M.glob(pattern)
+  local dir, tail = pattern:match "^(.*)/([^/]*)$"
+  if not dir then
+    return {}
+  end
+  local lua_pattern = "^" .. tail:gsub("[%%%.%+%-%?%[%]%^%$%(%)]", "%%%0"):gsub("%*", ".*") .. "$"
+  local out = {}
+  local pipe = io.popen("ls -1 " .. string.format("%q", dir) .. " 2>/dev/null")
+  if pipe then
+    for line in pipe:lines() do
+      if line:match(lua_pattern) then
+        out[#out + 1] = dir .. "/" .. line
+      end
+    end
+    pipe:close()
+  end
+  return out
+end
 M.plugin = {
   list = function()
     return {}
