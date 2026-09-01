@@ -1,0 +1,90 @@
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      ns: ${{ steps.conf.outputs.ns }}
+      backend: ${{ steps.conf.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: conf
+        run: |
+          set -euo pipefail
+          . ./plugin.conf
+          test -d "plugin/$ns" || { echo "::error::plugin/$ns does not exist"; exit 1; }
+          grep -q "local ns = \"$ns\"" "plugin/$ns/id.lua" \
+            || { echo "::error::plugin/$ns/id.lua disagrees with plugin.conf ns=$ns"; exit 1; }
+          grep -q "local repo = \"$repo\"" "plugin/$ns/id.lua" \
+            || { echo "::error::plugin/$ns/id.lua disagrees with plugin.conf repo=$repo"; exit 1; }
+          echo "ns=$ns" >> "$GITHUB_OUTPUT"
+          test -f backend/Cargo.toml && echo "backend=true" >> "$GITHUB_OUTPUT" \
+            || echo "backend=false" >> "$GITHUB_OUTPUT"
+  backend:
+    needs: detect
+    if: needs.detect.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+  plugin:
+    needs: detect
+    runs-on: ubuntu-latest
+    env:
+      NS: ${{ needs.detect.outputs.ns }}
+    defaults:
+      run:
+        working-directory: plugin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: leafo/gh-actions-lua@v10
+        with:
+          luaVersion: "5.4"
+      - uses: leafo/gh-actions-luarocks@v4
+      - uses: JohnnyMorganz/stylua-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          version: latest
+          args: --check plugin/init.lua plugin/${{ needs.detect.outputs.ns }} plugin/tests
+      - run: luarocks install luacheck
+      - run: luacheck init.lua "$NS" tests
+      - run: lua tests/run.lua
+  template:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shared files match starter-template
+        run: sh scripts/template.sh check
+  shell:
+    runs-on: ubuntu-latest
+    # Pinned: SC2015 fires differently across versions, so an unpinned runner
+    # image can fail a tree that is clean locally. Keep in step with the
+    # version in docs/development.md.
+    env:
+      SHELLCHECK_VERSION: v0.11.0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://github.com/koalaman/shellcheck/releases/download/$SHELLCHECK_VERSION/shellcheck-$SHELLCHECK_VERSION.linux.x86_64.tar.xz" \
+            | tar -xJf - -C /tmp
+          sudo install "/tmp/shellcheck-$SHELLCHECK_VERSION/shellcheck" /usr/local/bin/shellcheck
+          shellcheck --version
+      # find, not a glob: plugin/bin/ is absent in a --no-backend plugin.
+      - run: find scripts plugin -name '*.sh' -print0 | xargs -0 shellcheck -x

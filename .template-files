@@ -1,0 +1,26 @@
+# Files owned by starter-template. `just template-sync` overwrites them verbatim;
+# they must never contain plugin-specific strings (plugin.conf drives those).
+# Anything not listed here is seed code: copied once at scaffold, yours after.
+justfile
+.template-files
+scripts/lib.sh
+scripts/dev.sh
+scripts/deploy.sh
+scripts/doctor.sh
+scripts/scaffold.sh
+scripts/template.sh
+scripts/dev-config.lua
+.github/workflows/ci.yml
+.github/workflows/release.yml
+plugin/bin/bootstrap.sh
+plugin/bin/bootstrap.ps1
+plugin/.luacheckrc
+plugin/.luarc.json
+plugin/stylua.toml
+plugin/tests/wezterm_stub.lua
+backend/src/parser.rs
+backend/src/event.rs
+backend/src/command.rs
+backend/src/uservar.rs
+backend/src/terminal.rs
+backend/src/log.rs

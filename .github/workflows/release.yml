@@ -1,0 +1,136 @@
+name: Release
+on:
+  push:
+    tags:
+      - "v*"
+permissions:
+  contents: read
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.conf.outputs.backend }}
+      name: ${{ steps.conf.outputs.name }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: conf
+        name: Sources match tag
+        run: |
+          set -euo pipefail
+          . ./plugin.conf
+          name="${name:-wez-$ns}"
+          v="${GITHUB_REF_NAME#v}"
+          grep -q "return \"$v\"" "plugin/$ns/version.lua" \
+            || { echo "::error::plugin/$ns/version.lua is not $v"; exit 1; }
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          if [ -f backend/Cargo.toml ]; then
+            grep -qE "^version[[:space:]]*=[[:space:]]*\"$v\"" backend/Cargo.toml \
+              || { echo "::error::backend/Cargo.toml is not $v"; exit 1; }
+            echo "backend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "backend=false" >> "$GITHUB_OUTPUT"
+          fi
+  build:
+    needs: version
+    if: needs.version.outputs.backend == 'true'
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    env:
+      BIN: ${{ needs.version.outputs.name }}
+    defaults:
+      run:
+        working-directory: backend
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-14
+          - target: x86_64-apple-darwin
+            os: macos-14
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            cross: true
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            cross: true
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            ext: .exe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+          key: ${{ matrix.target }}
+      - name: Install cross
+        if: matrix.cross
+        run: cargo install cross --locked
+      - name: Build
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.cross }}" = "true" ]; then
+            cross build --release --locked --target ${{ matrix.target }}
+          else
+            cargo build --release --locked --target ${{ matrix.target }}
+          fi
+      - name: Stage asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp "target/${{ matrix.target }}/release/$BIN${{ matrix.ext }}" \
+             "dist/$BIN-${{ matrix.target }}${{ matrix.ext }}"
+          test -s "dist/$BIN-${{ matrix.target }}${{ matrix.ext }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.version.outputs.name }}-${{ matrix.target }}
+          path: backend/dist/*
+          if-no-files-found: error
+  release:
+    needs: [version, build]
+    if: always() && needs.version.result == 'success' && needs.build.result != 'failure'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      BIN: ${{ needs.version.outputs.name }}
+      HAS_BACKEND: ${{ needs.version.outputs.backend }}
+    steps:
+      - uses: actions/download-artifact@v4
+        if: env.HAS_BACKEND == 'true'
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Assert complete bundle
+        if: env.HAS_BACKEND == 'true'
+        run: |
+          set -euo pipefail
+          for t in aarch64-apple-darwin x86_64-apple-darwin \
+                   x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
+            test -s "dist/$BIN-$t" || { echo "::error::missing $BIN-$t"; exit 1; }
+          done
+          test -s "dist/$BIN-x86_64-pc-windows-msvc.exe"
+          test "$(find dist -maxdepth 1 -type f | wc -l)" -eq 5
+      - name: Assert release profile applied
+        if: env.HAS_BACKEND == 'true'
+        run: |
+          set -euo pipefail
+          f="dist/$BIN-x86_64-unknown-linux-gnu"
+          if file -b "$f" | grep -q "not stripped"; then
+            echo "::error::$f is not stripped; [profile.release] missing"
+            exit 1
+          fi
+          sz=$(stat -c%s "$f")
+          test "$sz" -gt 102400 || { echo "::error::$f is ${sz}B, suspiciously small"; exit 1; }
+      - name: Checksums
+        if: env.HAS_BACKEND == 'true'
+        run: cd dist && sha256sum "$BIN"-* > SHA256SUMS
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.HAS_BACKEND == 'true' && 'dist/*' || '' }}
+          fail_on_unmatched_files: ${{ env.HAS_BACKEND == 'true' }}
