@@ -6,3 +6,7 @@ plugin/lua
 plugin/*.src.rock
 
 .dev-build.log
+.venv
+__pycache__/
+.pytest_cache/
+*.pyc

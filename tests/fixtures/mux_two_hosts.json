@@ -1,0 +1,141 @@
+{
+  "state": {
+    "panes": [
+      {
+        "window_id": 10,
+        "tab_id": 30,
+        "pane_id": 46,
+        "workspace": "default",
+        "size": { "rows": 58, "cols": 98, "pixel_width": 1470, "pixel_height": 1740, "dpi": 144 },
+        "title": "zsh",
+        "cwd": "file://archie/home/fredrir",
+        "tab_title": "",
+        "window_title": "fredrir@archie",
+        "is_active": true,
+        "is_zoomed": false,
+        "tty_name": "/dev/pts/3"
+      },
+      {
+        "window_id": 10,
+        "tab_id": 30,
+        "pane_id": 51,
+        "workspace": "default",
+        "size": { "rows": 58, "cols": 98, "pixel_width": 1470, "pixel_height": 1740, "dpi": 144 },
+        "title": "nvim",
+        "cwd": "file://archie/home/fredrir/projects/x",
+        "tab_title": "",
+        "window_title": "fredrir@archie",
+        "is_active": false,
+        "is_zoomed": false,
+        "tty_name": "/dev/pts/4"
+      },
+      {
+        "window_id": 10,
+        "tab_id": 31,
+        "pane_id": 47,
+        "workspace": "default",
+        "size": { "rows": 58, "cols": 196, "pixel_width": 2940, "pixel_height": 1740, "dpi": 144 },
+        "title": "claude",
+        "cwd": "file://archie/home/fredrir/projects/x",
+        "tab_title": "",
+        "window_title": "fredrir@archie",
+        "is_active": true,
+        "is_zoomed": false,
+        "tty_name": "/dev/pts/5"
+      },
+      {
+        "window_id": 10,
+        "tab_id": 35,
+        "pane_id": 99,
+        "workspace": "default",
+        "size": { "rows": 58, "cols": 196, "pixel_width": 2940, "pixel_height": 1740, "dpi": 144 },
+        "title": "wez-nardo",
+        "cwd": "file://archie/home/fredrir",
+        "tab_title": "",
+        "window_title": "fredrir@archie",
+        "is_active": true,
+        "is_zoomed": false,
+        "tty_name": "/dev/pts/9"
+      },
+      {
+        "window_id": 12,
+        "tab_id": 40,
+        "pane_id": 60,
+        "workspace": "dev",
+        "size": { "rows": 40, "cols": 120, "pixel_width": 1920, "pixel_height": 1080, "dpi": 96 },
+        "title": "zsh",
+        "cwd": "file://archie/home/fredrir",
+        "tab_title": "",
+        "window_title": "archie",
+        "is_active": true,
+        "is_zoomed": false,
+        "tty_name": null
+      },
+      {
+        "window_id": 12,
+        "tab_id": 41,
+        "pane_id": 61,
+        "workspace": "dev",
+        "size": { "rows": 40, "cols": 120, "pixel_width": 1920, "pixel_height": 1080, "dpi": 96 },
+        "title": "htop",
+        "cwd": "file://archie/home/fredrir",
+        "tab_title": "monitor",
+        "window_title": "archie",
+        "is_active": true,
+        "is_zoomed": false,
+        "tty_name": null
+      }
+    ],
+    "text": {
+      "46": "$ ls\nbackend  docs  plugin  tests\n$ ",
+      "51": "  1 fn main() {\n  2     println!(\"hi\");\n  3 }\n~\n~\n-- INSERT --",
+      "47": "╭─ Claude ─╮\n> hi\n",
+      "60": "$ uptime\n 10:00 up 3 days\n$ ",
+      "61": "htop - 10:00:00 up 3 days, load average: 0.12 0.10 0.09\n",
+      "99": ""
+    },
+    "next_pane_id": 100,
+    "fail": {}
+  },
+  "context": {
+    "v": 1,
+    "app": "sessions",
+    "origin": { "pane_id": 46, "tab_id": 30, "window_id": 10, "workspace": "default", "domain": "localmux" },
+    "domains": [
+      { "name": "local", "label": "local", "kind": "local", "state": "Attached", "spawnable": true, "has_panes": true },
+      { "name": "localmux", "label": "localmux", "kind": "unix", "state": "Attached", "spawnable": true, "has_panes": true },
+      { "name": "archie-cable", "label": "archie via cable", "kind": "tls", "state": "Attached", "spawnable": true, "has_panes": true },
+      { "name": "archie-wifi", "label": "archie via wifi", "kind": "tls", "state": "Detached", "spawnable": true, "has_panes": false },
+      { "name": "archie-tailscale", "label": "archie via tailscale", "kind": "tls", "state": "Detached", "spawnable": true, "has_panes": false }
+    ],
+    "panes": {
+      "46": { "domain": "localmux", "process": "zsh", "cwd": "file://archie/home/fredrir", "unseen": false, "alt_screen": false },
+      "51": { "domain": "localmux", "process": "nvim", "cwd": "file://archie/home/fredrir/projects/x", "unseen": false, "alt_screen": true },
+      "47": { "domain": "localmux", "process": "claude", "cwd": "file://archie/home/fredrir/projects/x", "unseen": true, "alt_screen": false },
+      "99": { "domain": "local", "process": "wez-nardo", "cwd": "file://archie/home/fredrir", "unseen": false, "alt_screen": true },
+      "60": { "domain": "archie-cable", "process": "zsh", "cwd": "file://archie/home/fredrir", "unseen": false, "alt_screen": false },
+      "61": { "domain": "archie-cable", "process": "htop", "cwd": "file://archie/home/fredrir", "unseen": false, "alt_screen": true }
+    },
+    "workspaces": { "active": "default", "names": ["default", "dev"] },
+    "theme": {
+      "background": "#1e1e2e",
+      "foreground": "#cdd6f4",
+      "ansi": ["#45475a", "#f38ba8", "#a6e3a1", "#f9e2af", "#89b4fa", "#f5c2e7", "#94e2d5", "#bac2de"],
+      "brights": ["#585b70", "#f38ba8", "#a6e3a1", "#f9e2af", "#89b4fa", "#f5c2e7", "#94e2d5", "#a6adc8"],
+      "selection_bg": "#585b70",
+      "selection_fg": "#cdd6f4",
+      "cursor_bg": "#f5e0dc",
+      "accent": "#89b4fa"
+    },
+    "presentation": {
+      "mode": "overlay",
+      "width": 0.72,
+      "height": 0.7,
+      "max_width": 128,
+      "max_height": 42,
+      "backdrop": "dim",
+      "animations": true
+    },
+    "options": {}
+  }
+}
