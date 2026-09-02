@@ -808,7 +808,7 @@ dependencies = [
 
 [[package]]
 name = "nardo-core"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "ansi-to-tui",
  "anyhow",
@@ -825,7 +825,7 @@ dependencies = [
 
 [[package]]
 name = "nardo-palette"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "anyhow",
  "crossterm",
@@ -837,7 +837,7 @@ dependencies = [
 
 [[package]]
 name = "nardo-sessions"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "anyhow",
  "crossterm",
@@ -1231,7 +1231,7 @@ dependencies = [
 
 [[package]]
 name = "ratatui-termina"
-version = "0.1.0"
+version = "0.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0bf912d9e66f057a759d92e386a280ea886b352ab757d6ac4d653c7ed2c43c2"
 dependencies = [
@@ -1817,7 +1817,7 @@ dependencies = [
 
 [[package]]
 name = "wez-nardo"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -1888,7 +1888,7 @@ dependencies = [
 
 [[package]]
 name = "wezterm-input-types"
-version = "0.1.0"
+version = "0.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7012add459f951456ec9d6c7e6fc340b1ce15d6fc9629f8c42853412c029e57e"
 dependencies = [
